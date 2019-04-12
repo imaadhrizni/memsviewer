@@ -14,8 +14,13 @@ class LogReader(object):
         self.filename = []
         self.filepath = ''
         self.raw = []
+        self.version = ''
 
 
+    def get_version(self):
+        return "MEMS ECU ID: " + self.rosco.get_version(self.version)
+    
+    
     def convert_farenheit_to_celcius(self, f):
         return f - 55 #round(((f - 32) * 5.0 / 9.0),1)
 
@@ -34,12 +39,16 @@ class LogReader(object):
         datadict80 = {}
 
         i = 0
+        version_prefix = 'ECU responded to D0 command with:'
 
         f = open(self.filepath)
         line = f.readline()
         while line:
             line = f.readline()
 
+            if line.startswith(version_prefix):
+                self.version = line[len(version_prefix):].strip()
+                
             if len(line) > 50:
                 command_code = (line[0:2]).lower()
 

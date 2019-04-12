@@ -6,10 +6,11 @@ class Rosco(object):
         self._connected = False
 
         self._versions = {
-                'MNE101070' : b'\xd0\x99\x00\x02\x03',
-                'MNE101170' : b'\xd0\x99\x00\x03\x03'
+                'MNE101070' : '99 00 02 03',
+                'MNE101170' : '99 00 03 03'
             }
-
+            
+        
         #
         # The tables below describe the known fields in the data frames
         # that are sent by the ECU in responses to commands 0x7D and 0x80, respectively.
@@ -111,6 +112,12 @@ class Rosco(object):
                 {'current_iac_position' : b'\xff'},
             ]
 
+    
+    def get_version(self, memscode):
+        for key, value in self._versions.items():
+            if value == memscode:
+                return key
+                
     def get_dataframe(self, command_code):
         for c in self._dataframes:
             if c['command'] == command_code:
