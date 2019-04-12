@@ -1,4 +1,6 @@
 import mems.protocol.rosco
+import mems.diagnostics
+
 import pandas as pd
 import os
 import plotly.graph_objs as go
@@ -7,6 +9,7 @@ from plotly.offline import download_plotlyjs, init_notebook_mode, plot, iplot
 class LogReader(object):
     def __init__(self):
         self.rosco = mems.protocol.rosco.Rosco()
+        self.diagnostics = mems.diagnostics.MemsDiagnostics()
         self.df = pd.DataFrame()
         self.filename = []
         self.filepath = ''
@@ -14,7 +17,7 @@ class LogReader(object):
 
 
     def convert_farenheit_to_celcius(self, f):
-        return round(((f - 32) * 5.0 / 9.0),1)
+        return f - 55 #round(((f - 32) * 5.0 / 9.0),1)
 
 
     def combine_high_low_bytes(self, high, low):
@@ -92,45 +95,12 @@ class LogReader(object):
     
     def is_faulty(self, dimension):
         return (self.df[dimension].max() > 0)
-        
+   
         
     def display_faults(self):
-        fault = False
+        report = self.diagnostics.analyse_run(self.df)
+        print(report)
         
-        if self.is_faulty('coolant_temp_sensor_fault'):
-            fault = True
-            print ('faulty coolant temperature sensor')
-            
-        if self.is_faulty('inlet_air_temp_sensor_fault'):
-            fault = True
-            print ('faulty air inlet temperature sensor')
-        
-        if self.is_faulty('fuel_pump_circuit_fault'):
-            fault = True
-            print ('fuel pump circuit fault')
-            
-        if self.is_faulty('throttle_pot_circuit_fault'):
-            fault = True
-            print ('throttle potentiometer circuit fault')
-            
-        if self.df['map_sensor'].median() > 90:
-            fault = True
-            print ('map sensor may be faulty')
-        
-        warm_engine = self.df[(self.df['engine_speed'] >= 100) & (self.df['engine_speed'] <= 1000)]
-      
-        # determine if the map sensor readings are high when idling warm
-        if warm_engine['map_sensor'].median() > 45:
-            fault = True
-            print ('Warning: map sensor readings are high, check engine performance')
-            
-        # determine if the idle air readings are high when idling warm
-        if warm_engine['idle_air_contol_position'].median() > 50:
-            fault = True
-            print ('Warning: idle air control readings are high, this may cause poor idle performance')
-            
-        if not fault:
-            print('No faults diagnosed')
             
     def display_dimension_stats(self, dimension):
         mx = int(self.df[dimension].max())
@@ -141,7 +111,10 @@ class LogReader(object):
                
     
     def display_dimensions(self):
-        excluded_columns = ['dataframe_size', 'timestamp', '']
+        excluded_columns = ['dataframe_size', 'timestamp', '', 
+                            'coil_time_low_byte', 'coil_time_high_byte', 
+                            'idle_speed_deviation_low_byte', 'idle_speed_deviation_high_byte', 
+                            'engine_speed_low_byte', 'engine_speed_high_byte']
         
         print (f"{'name':45}{'min':>10}{'median':>10}{'max':>10}")
         
@@ -166,11 +139,12 @@ class LogReader(object):
         
         # prepare and transform the data 
         self.pivot_dataframe()
+               
         #self.remove_unknown_fields()
         self.replace_not_a_number_with_zero()
         self.create_decimal_values_from_bytes()
         self.read_fault_codes()
-        self.read_temperatures()
+        self.convert_metrics()
             
                
     # remove the unknown fields 
@@ -211,22 +185,23 @@ class LogReader(object):
         self.df['fuel_pump_throttle_pot_circuit_fault'].apply(lambda x: self.extract_fault_code(x, 0b01000000, self.df, 'throttle_pot_circuit_fault'))
 
                
-    # get the temperature values in degrees C
-    def read_temperatures(self):
+    # convert the metrics to the correct scale
+    def convert_metrics(self):
         # convert all the hex strings into integers
         self.df = self.df.apply(lambda x: x.astype(str).map(lambda x: int(x, base=16)))
                
-        # scale parameters
         # battery voltage 0.1V per LSB (e.g. 0x7B == 12.3V)
         self.df['battery_voltage'] = self.df['battery_voltage'].apply(lambda x: x / 10) 
+               
         # throttle pot. voltage 0.02V per LSB. (e.g. 0xFA == 5.0V)
         self.df['throttle_pot_voltage'] = self.df['throttle_pot_voltage'].apply(lambda x: x / 200)
+               
         # ignition_advance 0.5 degrees per LSB with range of -24 deg (0x00) to 103.5 deg (0xFF)
         self.df['ignition_advance'] = self.df['ignition_advance'].apply(lambda x: (x / 50) - 24)
+               
         # coil time, 0.002 milliseconds per LSB (16 bits) 
         self.df['coil_time'] = self.df['coil_time'].apply(lambda x: x / 2000)
-               
-               
+                        
         # convert all temperatures to celcius
         self.df['coolant_temperature'] = self.df['coolant_temperature'].apply(self.convert_farenheit_to_celcius)
         self.df['ambient_temperature'] = self.df['ambient_temperature'].apply(self.convert_farenheit_to_celcius)
