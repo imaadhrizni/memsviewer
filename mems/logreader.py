@@ -80,13 +80,36 @@ class LogReader(object):
 
         return df7d.append(df80)
 
-    
+        
     def display_graph(self, dimensions, title='', y_axis_label=''):
         data = []
-            
+
         for dimension in dimensions:
             data.append( 
                 go.Scatter(
+                    x=self.df['timestamp'],  # assign x as the dataframe column 'x'
+                    y=self.df[dimension],
+                    name=dimension,
+                    connectgaps=True,
+                    fill='toself',
+                    line=dict(shape='spline', smoothing=0.8),
+                )
+            )
+
+        layout = go.Layout(title=f'{title}',
+            xaxis=dict(title='time (s)'),
+            yaxis=dict(title=y_axis_label, zeroline=False))
+
+        fig = go.Figure(data=data, layout=layout)
+
+        return iplot(fig, filename=(f'{self.filename[0]}-{dimension}')) 
+
+    def display_bargraph(df, dimensions, title='', y_axis_label=''):
+        data = []
+
+        for dimension in dimensions:
+            data.append( 
+                go.Bar(
                     x=self.df['timestamp'],  # assign x as the dataframe column 'x'
                     y=self.df[dimension],
                     name=dimension
@@ -99,9 +122,8 @@ class LogReader(object):
 
         fig = go.Figure(data=data, layout=layout)
 
-        return iplot(fig, filename=(f'{self.filename[0]}-{dimension}'))    
-        
-    
+        return iplot(fig, filename=(f'{self.filename[0]}-{dimension}')) 
+
     def is_faulty(self, dimension):
         return (self.df[dimension].max() > 0)
    
@@ -204,6 +226,9 @@ class LogReader(object):
                
         # throttle pot. voltage 0.02V per LSB. (e.g. 0xFA == 5.0V)
         self.df['throttle_pot_voltage'] = self.df['throttle_pot_voltage'].apply(lambda x: x / 200)
+    
+        # short term fuel trim (STFL) 1% per LSB
+        self.df['short_term_trim'] = self.df['short_term_trim'].apply(lambda x: (x - 100) / 10)
                
         # ignition_advance 0.5 degrees per LSB with range of -24 deg (0x00) to 103.5 deg (0xFF)
         self.df['ignition_advance'] = self.df['ignition_advance'].apply(lambda x: (x / 50) - 24)
