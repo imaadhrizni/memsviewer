@@ -4,7 +4,6 @@ import mems.protocol.rosco
 import mems.diagnostics
 
 import pandas as pd
-import scipy
 import plotly.express as px
 import plotly.graph_objs as go
 import plotly.figure_factory as ff
@@ -159,8 +158,11 @@ class LogReader(object):
         print (f'{labels[0]:45}{labels[1]:>10}{labels[2]:>10}{labels[3]:>10}')
         
         for column in self.df:
-            if column in included_columns:
+            #if column in included_columns:
+            try:
                 self.display_dimension_stats(column)
+            except:
+                pass
                 
         print('\n')
 
