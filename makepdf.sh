@@ -1,1 +1,1 @@
-jupyter nbconvert --template=reports/readmems.tplx --to=pdf memsviewer.ipynb --output=reports/memsviewer
+jupyter nbconvert --template=reports/readmems.tplx --to=pdf memsscan.ipynb --output=reports/memsscan
